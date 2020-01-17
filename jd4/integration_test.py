@@ -15,7 +15,7 @@ def run(coro):
 
 
 class LanguageTest(TestCase):
-    """Run A+B problem on every languages."""
+    """在每种语言上运行A+B问题。"""
 
     @classmethod
     def setUpClass(cls):
@@ -129,6 +129,7 @@ class Program {
 }""")
 
 
+# 状态测试
 class StatusTest(TestCase):
     @classmethod
     def setUpClass(cls):

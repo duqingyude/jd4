@@ -11,12 +11,23 @@ CR = 13
 LF = 10
 TAB = 9
 SPACE = 32
+
+比较具有松散空白和换行规则的两个流。
+出于性能考虑，这是用cython编写的。一个简单的测试表明
+这里使用cython可以在python上实现50x+的性能。
+这里我们必须使用神奇的数字，因为cython不支持常量:
+CHUNK_SIZE = 32768
+EOF = 1
+CR = 13
+如果= 10
+选项卡= 9
+空间= 32
 """
 cdef class StreamReader:
     cdef stream
     cdef bytes buffer
-    cdef const char* begin
-    cdef const char* end
+    cdef const char*begin
+    cdef const char*end
 
     def __init__(self, stream):
         self.stream = stream
@@ -46,8 +57,8 @@ def compare_stream(fa, fb):
         b = rb.read()
         while a != b:
             if (a == 13 or
-                (both_spaced and (a == 32 or a == 9)) or
-                ((b == -1 or b == 10) and (a == 32 or a == 10))):
+                    (both_spaced and (a == 32 or a == 9)) or
+                    ((b == -1 or b == 10) and (a == 32 or a == 10))):
                 a = ra.read()
             elif (b == 13 or
                   (both_spaced and (b == 32 or b == 9)) or

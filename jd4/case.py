@@ -27,24 +27,39 @@ DEFAULT_MEMORY_BYTES = 268435456
 PROCESS_LIMIT = 64
 
 
+# 基本实例
+
 class CaseBase:
     def __init__(self, time_limit_ns, memory_limit_bytes, process_limit, score):
+        """
+
+        :param time_limit_ns: 时间限制ns
+        :param memory_limit_bytes: 内存限制字节
+        :param process_limit: 进程限制
+        :param score: 分数
+        """
         self.time_limit_ns = time_limit_ns
         self.memory_limit_bytes = memory_limit_bytes
         self.process_limit = process_limit
         self.score = score
 
+    # 裁判员: 运行判题机
     async def judge(self, package):
+        # 得到事件循环
         loop = get_event_loop()
+        # 获取沙箱
         sandbox, = await get_sandbox(1)
         try:
+            # 可执行的 沙箱安装运行需要的文件返回可执行文件
             executable = await package.install(sandbox)
+            # 创建相关管道
             stdin_file = path.join(sandbox.in_dir, 'stdin')
             mkfifo(stdin_file)
             stdout_file = path.join(sandbox.in_dir, 'stdout')
             mkfifo(stdout_file)
             stderr_file = path.join(sandbox.in_dir, 'stderr')
             mkfifo(stderr_file)
+            # 套接字
             with socket(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK) as cgroup_sock:
                 cgroup_sock.bind(path.join(sandbox.in_dir, 'cgroup'))
                 cgroup_sock.listen()
@@ -67,23 +82,29 @@ class CaseBase:
                 execute_status = await execute_task
                 _, correct, stderr, (time_usage_ns, memory_usage_bytes) = \
                     await others_task
+            # 超过状态内存限制
             if memory_usage_bytes >= self.memory_limit_bytes:
                 status = STATUS_MEMORY_LIMIT_EXCEEDED
                 score = 0
+            # 超过状态时间限制
             elif time_usage_ns >= self.time_limit_ns:
                 status = STATUS_TIME_LIMIT_EXCEEDED
                 score = 0
+            # 状态运行时错误
             elif execute_status:
                 status = STATUS_RUNTIME_ERROR
                 score = 0
+            # 状态错误的答案
             elif not correct:
                 status = STATUS_WRONG_ANSWER
                 score = 0
+            # 接受状态
             else:
                 status = STATUS_ACCEPTED
                 score = self.score
             return status, score, time_usage_ns, memory_usage_bytes, stderr
         finally:
+            # 安置沙箱
             put_sandbox(sandbox)
 
 
@@ -95,6 +116,8 @@ def dos2unix(src, dst):
         buf = buf.replace(b'\r', b'')
         dst.write(buf)
 
+
+# 默认情况下
 
 class DefaultCase(CaseBase):
     def __init__(self, open_input, open_output, time_ns, memory_bytes, score):
@@ -114,6 +137,7 @@ class DefaultCase(CaseBase):
             return compare_stream(ans, out)
 
 
+# 自定义判断情况
 class CustomJudgeCase:
     def __init__(self, open_input, time_ns, memory_bytes, open_judge, judge_lang):
         self.open_input = open_input
@@ -230,8 +254,17 @@ class CustomJudgeCase:
             pass
 
 
+# A+B实例
 class APlusBCase(CaseBase):
     def __init__(self, a, b, time_limit_ns, memory_limit_bytes, score):
+        """
+
+        :param a: 数字
+        :param b: 数字
+        :param time_limit_ns: 时间限制
+        :param memory_limit_bytes: 分数限制
+        :param score: 分数
+        """
         super().__init__(time_limit_ns, memory_limit_bytes, PROCESS_LIMIT, score)
         self.a = a
         self.b = b
@@ -319,6 +352,8 @@ class PracticeCase(CaseBase):
             put_sandbox(sandbox)
 
 
+
+# 读遗留案件
 def read_legacy_cases(config, open):
     num_cases = int(config.readline())
     for line in islice(csv.reader(config, delimiter='|'), num_cases):
@@ -334,6 +369,7 @@ def read_legacy_cases(config, open):
                           int(score_str))
 
 
+# 读yaml情况下
 def read_yaml_cases(config, open):
     for case in yaml.safe_load(config)['cases']:
         if 'judge' not in case:
@@ -350,6 +386,7 @@ def read_yaml_cases(config, open):
                                   path.splitext(case['judge'])[1][1:])
 
 
+# 阅读案例
 def read_cases(file):
     zip_file = ZipFile(file)
     canonical_dict = dict((name.lower(), name)

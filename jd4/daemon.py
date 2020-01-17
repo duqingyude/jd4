@@ -14,8 +14,10 @@ from jd4.status import STATUS_ACCEPTED, STATUS_COMPILE_ERROR, \
 
 RETRY_DELAY_SEC = 30
 
+
 class CompileError(Exception):
     pass
+
 
 class JudgeHandler:
     def __init__(self, session, request, ws):
@@ -129,6 +131,7 @@ class JudgeHandler:
     def end(self, **kwargs):
         self.ws.send_json({'key': 'end', 'tag': self.tag, **kwargs})
 
+
 async def update_problem_data(session):
     logger.info('Update problem data')
     result = await session.judge_datalist(config.get('last_update_at', 0))
@@ -138,15 +141,18 @@ async def update_problem_data(session):
     config['last_update_at'] = result['time']
     await save_config()
 
+
 async def do_judge(session):
     await update_problem_data(session)
     await session.judge_consume(JudgeHandler)
+
 
 async def do_noop(session):
     while True:
         await sleep(3600)
         logger.info('Updating session')
         await session.judge_noop()
+
 
 async def daemon():
     try_init_cgroup()
@@ -164,6 +170,7 @@ async def daemon():
                 logger.exception(e)
             logger.info('Retrying after %d seconds', RETRY_DELAY_SEC)
             await sleep(RETRY_DELAY_SEC)
+
 
 if __name__ == '__main__':
     get_event_loop().run_until_complete(daemon())

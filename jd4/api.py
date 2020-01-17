@@ -16,10 +16,12 @@ try:
 except FileNotFoundError:
     pass
 
+
 class VJ4Error(Exception):
     def __init__(self, name, message, *args):
         super().__init__(name, message, *args)
         self.name = name
+
 
 async def json_response_to_dict(response):
     if response.content_type != 'application/json':
@@ -31,6 +33,7 @@ async def json_response_to_dict(response):
                        error.get('message', ''),
                        *error.get('args', []))
     return response_dict
+
 
 class VJ4Session(ClientSession):
     def __init__(self, server_url):
@@ -58,6 +61,7 @@ class VJ4Session(ClientSession):
         async with self.ws_connect(self.full_url('judge/consume-conn/websocket')) as ws:
             logger.info('Connected')
             queue = Queue()
+
             async def worker():
                 try:
                     while True:
@@ -68,6 +72,7 @@ class VJ4Session(ClientSession):
                 except Exception as e:
                     logger.exception(e)
                     await ws.close()
+
             worker_task = get_event_loop().create_task(worker())
             try:
                 while True:

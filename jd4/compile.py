@@ -13,7 +13,7 @@ from jd4.log import logger
 from jd4.pool import get_sandbox, put_sandbox
 from jd4.sandbox import SANDBOX_COMPILE, SANDBOX_EXECUTE
 from jd4.util import parse_memory_bytes, parse_time_ns, \
-                     read_pipe, write_binary_file
+    read_pipe, write_binary_file
 
 _MAX_OUTPUT = 8192
 DEFAULT_TIME = '20s'
@@ -22,6 +22,7 @@ PROCESS_LIMIT = 64
 _CONFIG_DIR = user_config_dir('jd4')
 _LANGS_FILE = path.join(_CONFIG_DIR, 'langs.yaml')
 _langs = dict()
+
 
 class Executable:
     def __init__(self, execute_file, execute_args):
@@ -43,6 +44,7 @@ class Executable:
                                   extra_file,
                                   cgroup_file)
 
+
 class Package:
     def __init__(self, package_dir, execute_file, execute_args):
         self.package_dir = package_dir
@@ -60,6 +62,7 @@ class Package:
                                    path.join(self.package_dir, 'package'),
                                    path.join(sandbox.in_dir, 'package'))
         return Executable(self.execute_file, self.execute_args)
+
 
 class Compiler:
     def __init__(self,
@@ -98,6 +101,7 @@ class Compiler:
                                    path.join(package_dir, 'package'))
         return Package(package_dir, self.execute_file, self.execute_args), 0
 
+
 class Interpreter:
     def __init__(self, code_file, execute_file, execute_args):
         self.code_file = code_file
@@ -110,6 +114,7 @@ class Interpreter:
         write_binary_file(path.join(package_dir, 'package', self.code_file),
                           code)
         return Package(package_dir, self.execute_file, self.execute_args)
+
 
 async def _compiler_build(compiler,
                           time_limit_ns,
@@ -143,14 +148,17 @@ async def _compiler_build(compiler,
     finally:
         put_sandbox(sandbox)
 
+
 async def _interpreter_build(interpreter, code):
     return interpreter.build(code), '', 0, 0
+
 
 async def build(lang, code):
     build_fn = _langs.get(lang)
     if not build_fn:
         raise SystemError('Unsupported language: {}'.format(lang))
     return await build_fn(code)
+
 
 def _init():
     try:
@@ -179,5 +187,6 @@ def _init():
             _langs[lang_name] = partial(_interpreter_build, interpreter)
         else:
             logger.error('Unknown type %s', lang_config['type'])
+
 
 _init()
