@@ -324,7 +324,7 @@ class PracticeCase:
             chunks.append(chunk)
             size -= len(chunk)
         transport.close()
-        return b''.join(chunks).decode()
+        return (b''.join(chunks)).decode()
 
     async def judge(self, package):
         loop = get_event_loop()
@@ -376,6 +376,8 @@ class PracticeCase:
                 status = STATUS_ACCEPTED
                 score = self.score
             return status, score, time_usage_ns, memory_usage_bytes, stdout, stderr
+        except:
+            return 0, 0, 0, 0, 0, 0
         finally:
             put_sandbox(sandbox)
 
