@@ -5,8 +5,10 @@ from ruamel import yaml
 
 from jd4.log import logger
 
+# 获取用户配置目录
 _CONFIG_DIR = user_config_dir('jd4')
 _CONFIG_FILE = path.join(_CONFIG_DIR, 'config.yaml')
+
 
 def _load_config():
     try:
@@ -16,7 +18,10 @@ def _load_config():
         logger.error('Config file %s not found.', _CONFIG_FILE)
         exit(1)
 
+
+# 获取配置数据
 config = _load_config()
+
 
 async def save_config():
     def do_save_config():
@@ -25,5 +30,9 @@ async def save_config():
 
     await get_event_loop().run_in_executor(None, do_save_config)
 
+
 if __name__ == '__main__':
+    print(config['server_url'])
+    print(config['uname'])
+    print(config['password'])
     print(config)

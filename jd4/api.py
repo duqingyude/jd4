@@ -35,6 +35,7 @@ async def json_response_to_dict(response):
     return response_dict
 
 
+# 创建VJ4会话
 class VJ4Session(ClientSession):
     def __init__(self, server_url):
         super().__init__(cookie_jar=_COOKIE_JAR)
@@ -94,6 +95,12 @@ class VJ4Session(ClientSession):
         await self.post_json('login', uname=uname, password=password)
 
     async def login_if_needed(self, uname, password):
+        """
+        判断是否登陆JV4
+        :param uname:
+        :param password:
+        :return:
+        """
         try:
             await self.judge_noop()
             logger.info('Session is valid')

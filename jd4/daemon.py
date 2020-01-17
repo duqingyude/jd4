@@ -19,6 +19,7 @@ class CompileError(Exception):
     pass
 
 
+# 法官处理程序
 class JudgeHandler:
     def __init__(self, session, request, ws):
         self.session = session
@@ -142,11 +143,13 @@ async def update_problem_data(session):
     await save_config()
 
 
+# 启动ws连接
 async def do_judge(session):
     await update_problem_data(session)
     await session.judge_consume(JudgeHandler)
 
 
+# 心跳检测
 async def do_noop(session):
     while True:
         await sleep(3600)
@@ -154,13 +157,19 @@ async def do_noop(session):
         await session.judge_noop()
 
 
+# 异步守护进程
 async def daemon():
+    # 尝试初始化cgroups，其名称源自控制组群（control groups）的简写，是Linux内核的一个功能，用来限制、控制与分离一个进程组的资源（如CPU、内存、磁盘输入输出等）。
     try_init_cgroup()
 
+    # 创建异步回话连接jv4服务端
+    # config['server_url'] 获取配置文件数据
     async with VJ4Session(config['server_url']) as session:
         while True:
             try:
+                # 登陆JV4服务器
                 await session.login_if_needed(config['uname'], config['password'])
+                # 运行两个协程
                 done, pending = await wait([do_judge(session), do_noop(session)],
                                            return_when=FIRST_COMPLETED)
                 for task in pending:
@@ -168,9 +177,12 @@ async def daemon():
                 await gather(*done)
             except Exception as e:
                 logger.exception(e)
+            # 打印等待log
             logger.info('Retrying after %d seconds', RETRY_DELAY_SEC)
+            # 等待30秒
             await sleep(RETRY_DELAY_SEC)
 
 
 if __name__ == '__main__':
+    # 启动异步程序
     get_event_loop().run_until_complete(daemon())
