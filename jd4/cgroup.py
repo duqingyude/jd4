@@ -15,7 +15,9 @@ MEMORY_CGROUP_ROOT = '/sys/fs/cgroup/memory/jd4'
 PIDS_CGROUP_ROOT = '/sys/fs/cgroup/pids/jd4'
 WAIT_JITTER_NS = 5000000
 
+
 def try_init_cgroup():
+    # 获取用户EUID
     euid = geteuid()
     cgroups_to_init = list()
     if not (path.isdir(CPUACCT_CGROUP_ROOT) and access(CPUACCT_CGROUP_ROOT, W_OK)):
@@ -25,16 +27,20 @@ def try_init_cgroup():
     if not (path.isdir(PIDS_CGROUP_ROOT) and access(PIDS_CGROUP_ROOT, W_OK)):
         cgroups_to_init.append(PIDS_CGROUP_ROOT)
     if cgroups_to_init:
+        # 判断是否root用户
         if euid == 0:
             logger.info('Initializing cgroup: %s', ', '.join(cgroups_to_init))
             for cgroup_to_init in cgroups_to_init:
+                # 递归创建目录
                 makedirs(cgroup_to_init, exist_ok=True)
+        # 判断是否有终端
         elif __stdin__.isatty():
             logger.info('Initializing cgroup: %s', ', '.join(cgroups_to_init))
             call(['sudo', 'sh', '-c', 'mkdir -p "{1}" && chown -R "{0}" "{1}"'.format(
                 euid, '" "'.join(cgroups_to_init))])
         else:
             logger.error('Cgroup not initialized')
+
 
 class CGroup:
     def __init__(self):
@@ -99,13 +105,16 @@ class CGroup:
     def pids_max(self, value):
         write_text_file(path.join(self.pids_cgroup_dir, 'pids.max'), str(value))
 
+
 def enter_cgroup(socket_path):
     with socket(AF_UNIX, SOCK_STREAM) as sock:
         sock.connect(socket_path)
         sock.recv(1)
 
+
 def _get_idle():
     return float(read_text_file('/proc/uptime').split()[1])
+
 
 async def wait_cgroup(sock, execute_task, cpu_limit_ns, idle_limit_ns,
                       memory_limit_bytes, process_limit):
