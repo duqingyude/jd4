@@ -7,13 +7,16 @@ from jd4.cgroup import try_init_cgroup
 from jd4.compile import build
 from jd4.log import logger
 from jd4.status import STATUS_ACCEPTED, STATUS_WRONG_ANSWER, STATUS_RUNTIME_ERROR, \
-                       STATUS_TIME_LIMIT_EXCEEDED, STATUS_MEMORY_LIMIT_EXCEEDED
+    STATUS_TIME_LIMIT_EXCEEDED, STATUS_MEMORY_LIMIT_EXCEEDED
+
 
 def run(coro):
     return get_event_loop().run_until_complete(coro)
 
+
 class LanguageTest(TestCase):
     """Run A+B problem on every languages."""
+
     @classmethod
     def setUpClass(cls):
         try_init_cgroup()
@@ -125,6 +128,7 @@ class Program {
     }
 }""")
 
+
 class StatusTest(TestCase):
     @classmethod
     def setUpClass(cls):
@@ -163,6 +167,7 @@ int main(void) {
     def test_runtime_error(self):
         self.do_status(STATUS_RUNTIME_ERROR, 0, b'int main(void) { return 1; }')
 
+
 class CustomJudgeTest(TestCase):
     @classmethod
     def setUpClass(cls):
@@ -200,6 +205,7 @@ int main(void) {
     scanf("%d", &sum);
     printf("%d %d\\n", 42, sum - 42);
 }""")
+
 
 if __name__ == '__main__':
     main()

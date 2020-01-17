@@ -16,8 +16,8 @@ from jd4.compile import build
 from jd4.error import FormatError
 from jd4.pool import get_sandbox, put_sandbox
 from jd4.status import STATUS_ACCEPTED, STATUS_WRONG_ANSWER, \
-                       STATUS_TIME_LIMIT_EXCEEDED, STATUS_MEMORY_LIMIT_EXCEEDED, \
-                       STATUS_RUNTIME_ERROR, STATUS_SYSTEM_ERROR
+    STATUS_TIME_LIMIT_EXCEEDED, STATUS_MEMORY_LIMIT_EXCEEDED, \
+    STATUS_RUNTIME_ERROR, STATUS_SYSTEM_ERROR
 from jd4.util import read_pipe, parse_memory_bytes, parse_time_ns
 
 CHUNK_SIZE = 32768
@@ -25,6 +25,7 @@ MAX_STDERR_SIZE = 8192
 DEFAULT_TIME_NS = 1000000000
 DEFAULT_MEMORY_BYTES = 268435456
 PROCESS_LIMIT = 64
+
 
 class CaseBase:
     def __init__(self, time_limit_ns, memory_limit_bytes, process_limit, score):
@@ -85,6 +86,7 @@ class CaseBase:
         finally:
             put_sandbox(sandbox)
 
+
 def dos2unix(src, dst):
     while True:
         buf = src.read(CHUNK_SIZE)
@@ -92,6 +94,7 @@ def dos2unix(src, dst):
             break
         buf = buf.replace(b'\r', b'')
         dst.write(buf)
+
 
 class DefaultCase(CaseBase):
     def __init__(self, open_input, open_output, time_ns, memory_bytes, score):
@@ -109,6 +112,7 @@ class DefaultCase(CaseBase):
     def do_output(self, output_file):
         with open(output_file, 'rb') as out, self.open_output() as ans:
             return compare_stream(ans, out)
+
 
 class CustomJudgeCase:
     def __init__(self, open_input, time_ns, memory_bytes, open_judge, judge_lang):
@@ -152,7 +156,7 @@ class CustomJudgeCase:
             judge_extra_file = path.join(judge_sandbox.in_dir, 'extra')
             mkfifo(judge_extra_file)
             with socket(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK) as user_cgroup_sock, \
-                 socket(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK) as judge_cgroup_sock:
+                    socket(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK) as judge_cgroup_sock:
                 user_cgroup_sock.bind(path.join(user_sandbox.in_dir, 'cgroup'))
                 judge_cgroup_sock.bind(path.join(judge_sandbox.in_dir, 'cgroup'))
                 user_cgroup_sock.listen()
@@ -195,8 +199,8 @@ class CustomJudgeCase:
                 (judge_time_usage_ns, judge_memory_usage_bytes) = \
                     await others_task
             if (judge_execute_status or
-                judge_memory_usage_bytes >= DEFAULT_MEMORY_BYTES or
-                judge_time_usage_ns >= DEFAULT_TIME_NS):
+                    judge_memory_usage_bytes >= DEFAULT_MEMORY_BYTES or
+                    judge_time_usage_ns >= DEFAULT_TIME_NS):
                 status = STATUS_SYSTEM_ERROR
                 score = 0
             elif user_memory_usage_bytes >= self.memory_bytes:
@@ -225,6 +229,7 @@ class CustomJudgeCase:
         except BrokenPipeError:
             pass
 
+
 class APlusBCase(CaseBase):
     def __init__(self, a, b, time_limit_ns, memory_limit_bytes, score):
         super().__init__(time_limit_ns, memory_limit_bytes, PROCESS_LIMIT, score)
@@ -242,6 +247,78 @@ class APlusBCase(CaseBase):
         with open(output_file, 'rb') as file:
             return compare_stream(BytesIO(str(self.a + self.b).encode()), file)
 
+
+class PracticeCase(CaseBase):
+    def __init__(self, str_input, str_output, time_ns, memory_bytes, score):
+        super().__init__(time_ns, memory_bytes, PROCESS_LIMIT, score)
+        self.str_input = str_input
+        self.str_output = str_output
+
+    def do_input(self, input_file):
+        try:
+            with open(input_file, 'wb') as dst:
+                dst.write(self.str_input.encode())
+        except BrokenPipeError:
+            pass
+
+    def do_output(self, output_file):
+        with open(output_file, 'rb') as out:
+            return compare_stream(BytesIO(self.str_output.encode()), out)
+
+    async def judge(self, package):
+        loop = get_event_loop()
+        sandbox, = await get_sandbox(1)
+        try:
+            executable = await package.install(sandbox)
+            stdin_file = path.join(sandbox.in_dir, 'stdin')
+            mkfifo(stdin_file)
+            stdout_file = path.join(sandbox.in_dir, 'stdout')
+            mkfifo(stdout_file)
+            stderr_file = path.join(sandbox.in_dir, 'stderr')
+            mkfifo(stderr_file)
+            with socket(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK) as cgroup_sock:
+                cgroup_sock.bind(path.join(sandbox.in_dir, 'cgroup'))
+                cgroup_sock.listen()
+                execute_task = loop.create_task(executable.execute(
+                    sandbox,
+                    stdin_file='/in/stdin',
+                    stdout_file='/in/stdout',
+                    stderr_file='/in/stderr',
+                    cgroup_file='/in/cgroup'))
+                others_task = gather(
+                    loop.run_in_executor(None, self.do_input, stdin_file),
+                    loop.run_in_executor(None, self.do_output, stdout_file),
+                    read_pipe(stdout_file, MAX_STDERR_SIZE),
+                    read_pipe(stderr_file, MAX_STDERR_SIZE),
+                    wait_cgroup(cgroup_sock,
+                                execute_task,
+                                self.time_limit_ns,
+                                self.time_limit_ns,
+                                self.memory_limit_bytes,
+                                self.process_limit))
+                execute_status = await execute_task
+                _, correct, stdout, stderr, (time_usage_ns, memory_usage_bytes) = \
+                    await others_task
+            if memory_usage_bytes >= self.memory_limit_bytes:
+                status = STATUS_MEMORY_LIMIT_EXCEEDED
+                score = 0
+            elif time_usage_ns >= self.time_limit_ns:
+                status = STATUS_TIME_LIMIT_EXCEEDED
+                score = 0
+            elif execute_status:
+                status = STATUS_RUNTIME_ERROR
+                score = 0
+            elif not correct:
+                status = STATUS_WRONG_ANSWER
+                score = 0
+            else:
+                status = STATUS_ACCEPTED
+                score = self.score
+            return status, score, time_usage_ns, memory_usage_bytes, stdout, stderr
+        finally:
+            put_sandbox(sandbox)
+
+
 def read_legacy_cases(config, open):
     num_cases = int(config.readline())
     for line in islice(csv.reader(config, delimiter='|'), num_cases):
@@ -255,6 +332,7 @@ def read_legacy_cases(config, open):
                           int(float(time_str) * 1000000000),
                           memory_bytes,
                           int(score_str))
+
 
 def read_yaml_cases(config, open):
     for case in yaml.safe_load(config)['cases']:
@@ -271,6 +349,7 @@ def read_yaml_cases(config, open):
                                   partial(open, case['judge']),
                                   path.splitext(case['judge'])[1][1:])
 
+
 def read_cases(file):
     zip_file = ZipFile(file)
     canonical_dict = dict((name.lower(), name)
@@ -281,6 +360,7 @@ def read_cases(file):
             return zip_file.open(canonical_dict[name.lower()])
         except KeyError:
             raise FileNotFoundError(name) from None
+
     try:
         config = TextIOWrapper(open('config.ini'),
                                encoding='utf-8', errors='replace')
