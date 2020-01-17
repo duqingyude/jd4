@@ -1,6 +1,7 @@
 import csv
 import re
-from asyncio import gather, get_event_loop
+from os import fdopen, open as os_open, O_RDONLY, O_NONBLOCK
+from asyncio import gather, get_event_loop, StreamReader, StreamReaderProtocol
 from functools import partial
 from io import BytesIO, TextIOWrapper
 from itertools import islice
@@ -281,11 +282,21 @@ class APlusBCase(CaseBase):
             return compare_stream(BytesIO(str(self.a + self.b).encode()), file)
 
 
-class PracticeCase(CaseBase):
+class PracticeCase:
     def __init__(self, str_input, str_output, time_ns, memory_bytes, score):
-        super().__init__(time_ns, memory_bytes, PROCESS_LIMIT, score)
+        """
+
+        :param time_limit_ns: 时间限制ns
+        :param memory_limit_bytes: 内存限制字节
+        :param process_limit: 进程限制
+        :param score: 分数
+        """
         self.str_input = str_input
         self.str_output = str_output
+        self.time_limit_ns = time_ns
+        self.memory_limit_bytes = memory_bytes
+        self.process_limit = 64
+        self.score = score
 
     def do_input(self, input_file):
         try:
@@ -297,6 +308,23 @@ class PracticeCase(CaseBase):
     def do_output(self, output_file):
         with open(output_file, 'rb') as out:
             return compare_stream(BytesIO(self.str_output.encode()), out)
+
+    @staticmethod
+    async def read_pipe(file, size):
+        loop = get_event_loop()
+        reader = StreamReader()
+        protocol = StreamReaderProtocol(reader)
+        transport, _ = await loop.connect_read_pipe(
+            lambda: protocol, fdopen(os_open(file, O_RDONLY | O_NONBLOCK)))
+        chunks = list()
+        while size > 0:
+            chunk = await reader.read(size)
+            if not chunk:
+                break
+            chunks.append(chunk)
+            size -= len(chunk)
+        transport.close()
+        return b''.join(chunks).decode()
 
     async def judge(self, package):
         loop = get_event_loop()
@@ -321,8 +349,8 @@ class PracticeCase(CaseBase):
                 others_task = gather(
                     loop.run_in_executor(None, self.do_input, stdin_file),
                     loop.run_in_executor(None, self.do_output, stdout_file),
-                    read_pipe(stdout_file, MAX_STDERR_SIZE),
-                    read_pipe(stderr_file, MAX_STDERR_SIZE),
+                    self.read_pipe(stdout_file, MAX_STDERR_SIZE),
+                    self.read_pipe(stderr_file, MAX_STDERR_SIZE),
                     wait_cgroup(cgroup_sock,
                                 execute_task,
                                 self.time_limit_ns,
@@ -350,7 +378,6 @@ class PracticeCase(CaseBase):
             return status, score, time_usage_ns, memory_usage_bytes, stdout, stderr
         finally:
             put_sandbox(sandbox)
-
 
 
 # 读遗留案件
